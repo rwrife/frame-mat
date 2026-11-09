@@ -16,7 +16,7 @@ jobs:
       - name: Test with pinned Flutter in Docker
         run: |
           docker build -f .github/Dockerfile.flutter-test -t frame-mat-flutter-test .
-          docker run -e HOME=/tmp -v "$PWD:/app" frame-mat-flutter-test sh -c 'git config --global --add safe.directory /app && flutter pub get --enforce-lockfile && dart format --output=none --set-exit-if-changed lib test && flutter analyze && flutter test'
+          docker run -e HOME=/tmp -v "$PWD:/app" frame-mat-flutter-test sh -c 'git config --global --add safe.directory /opt/flutter && git config --global --add safe.directory /app && flutter pub get --enforce-lockfile && dart format --output=none --set-exit-if-changed lib test && flutter analyze && flutter test'
 
   windows:
     runs-on: windows-latest
