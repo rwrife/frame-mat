@@ -1,0 +1,11 @@
+{
+  "platform": "windows+android+ios+flutter",
+  "flutter_version": "3.44.0",
+  "flutter_revision": "559ffa3f75",
+  "dart_version": "3.12.0",
+  "bundle_identifier": "com.infinityball.framemat",
+  "android_application_id": "com.infinityball.framemat",
+  "ios_bundle_identifier": "com.infinityball.framemat",
+  "ios_tablet_support": true,
+  "windows_primary_release": true
+}

@@ -1,0 +1,5 @@
+Frame Mat — offline photo mat-cut planning.
+
+Planned for home framers and craft groups: enter artwork, frame, mat-board and border dimensions; preview the visible opening and check whether your plan fits before you cut. Save local drafts and export a dimensioned worksheet and your own backup. Phone, tablet and Windows layouts are planned.
+
+Current version is a development skeleton. Geometry, saving, export and release builds are not implemented yet; review this copy against shipped behavior before any store submission. Frame Mat does not measure physical objects automatically and cannot guarantee cut accuracy.
