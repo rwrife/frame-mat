@@ -1,0 +1,9 @@
+FROM ubuntu:24.04
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl git xz-utils unzip libstdc++6 libglu1-mesa && rm -rf /var/lib/apt/lists/*
+RUN curl -fsSL https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_3.44.0-stable.tar.xz -o /flutter.tar.xz \
+    && printf '%s  %s\n' 'e1ec95e6c550458a34de93580cb85dac24da0e9bedb9bb42811f050ac5a0c7d5' /flutter.tar.xz | sha256sum -c - \
+    && tar -xJf /flutter.tar.xz -C /opt \
+    && git config --global --add safe.directory /opt/flutter \
+    && /opt/flutter/bin/flutter --version
+ENV PATH="/opt/flutter/bin:${PATH}"
+WORKDIR /app
