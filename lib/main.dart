@@ -1,7 +1,11 @@
+import 'dart:math' as math;
+
 import 'package:fluent_ui/fluent_ui.dart' as fluent;
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:frame_mat/mat_geometry.dart';
 
 void main() => runApp(const FrameMatApp());
 
@@ -20,7 +24,7 @@ class FrameMatApp extends StatelessWidget {
           navigationBar: const CupertinoNavigationBar(
             middle: Text('Frame Mat'),
           ),
-          child: SafeArea(child: _Workspace(platform: target)),
+          child: SafeArea(child: Workspace(platform: target)),
         ),
       );
     }
@@ -34,7 +38,7 @@ class FrameMatApp extends StatelessWidget {
               fluent.PaneItem(
                 icon: const fluent.Icon(fluent.FluentIcons.picture),
                 title: const Text('Workspace'),
-                body: _Workspace(platform: target),
+                body: Workspace(platform: target),
               ),
             ],
           ),
@@ -46,32 +50,208 @@ class FrameMatApp extends StatelessWidget {
       theme: ThemeData(useMaterial3: true, colorSchemeSeed: Colors.blueGrey),
       home: Scaffold(
         appBar: AppBar(title: const Text('Frame Mat')),
-        body: _Workspace(platform: target),
+        body: Workspace(platform: target),
       ),
     );
   }
 }
 
-class _Workspace extends StatelessWidget {
-  const _Workspace({required this.platform});
+class Workspace extends StatefulWidget {
+  const Workspace({super.key, required this.platform});
 
   final TargetPlatform platform;
 
   @override
+  State<Workspace> createState() => _WorkspaceState();
+}
+
+class _WorkspaceState extends State<Workspace> {
+  static const defaults = <String, String>{
+    'Artwork width': '200',
+    'Artwork height': '300',
+    'Opening width': '190',
+    'Opening height': '290',
+    'Left border': '40',
+    'Right border': '40',
+    'Top border': '50',
+    'Bottom border': '50',
+    'Stock width': '270',
+    'Stock height': '390',
+    'Frame width': '270',
+    'Frame height': '390',
+  };
+
+  late final fields = {
+    for (final entry in defaults.entries)
+      entry.key: TextEditingController(text: entry.value),
+  };
+  LengthUnit unit = LengthUnit.millimeters;
+
+  @override
+  void dispose() {
+    for (final controller in fields.values) {
+      controller.dispose();
+    }
+    super.dispose();
+  }
+
+  double value(String name) {
+    final raw = fields[name]!.text.trim();
+    final number = double.tryParse(raw);
+    if (number == null || !number.isFinite || number <= 0) {
+      throw FormatException('$name must be a positive, finite number.');
+    }
+    return number;
+  }
+
+  MatPlan get plan => MatPlan(
+    unit: unit,
+    artwork: Dimensions(value('Artwork width'), value('Artwork height')),
+    opening: Dimensions(value('Opening width'), value('Opening height')),
+    borders: Borders(
+      value('Left border'),
+      value('Right border'),
+      value('Top border'),
+      value('Bottom border'),
+    ),
+    stock: Dimensions(value('Stock width'), value('Stock height')),
+    frame: Dimensions(value('Frame width'), value('Frame height')),
+  );
+
+  void changeUnit() {
+    final next = unit == LengthUnit.millimeters
+        ? LengthUnit.inches
+        : LengthUnit.millimeters;
+    // Validate all conversions before changing any field; invalid drafts stay intact.
+    final converted = <String, String>{};
+    try {
+      for (final entry in fields.entries) {
+        converted[entry.key] = unit.convert(value(entry.key), next).toString();
+      }
+    } on ArgumentError {
+      return;
+    } on FormatException {
+      return;
+    }
+    setState(() {
+      for (final entry in converted.entries) {
+        fields[entry.key]!.text = entry.value;
+      }
+      unit = next;
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
     final compact = MediaQuery.sizeOf(context).width < 700;
-    final sections = [
-      _Section(
-        title: 'Measurements',
-        detail: 'Enter artwork, opening, frame and board dimensions.',
-        platform: platform,
+    MatPlan? current;
+    String? error;
+    try {
+      current = plan;
+    } on FormatException catch (e) {
+      error = e.message;
+    } on ArgumentError catch (e) {
+      error = e.message?.toString() ?? 'Measurements exceed supported range.';
+    }
+
+    final form = _Section(
+      platform: widget.platform,
+      title: 'Measurements',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _AdaptiveButton(
+            platform: widget.platform,
+            onPressed: changeUnit,
+            label:
+                'Unit: ${unit == LengthUnit.millimeters ? 'mm' : 'in'} (switch)',
+          ),
+          const SizedBox(height: 12),
+          for (final group in [
+            'Artwork',
+            'Opening',
+            'Border',
+            'Stock',
+            'Frame',
+          ]) ...[
+            Text(group, style: const TextStyle(fontWeight: FontWeight.bold)),
+            const SizedBox(height: 6),
+            for (final name in defaults.keys.where(
+              (key) => group == 'Border'
+                  ? key.endsWith('border')
+                  : key.startsWith(group),
+            ))
+              Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: _AdaptiveField(
+                  key: ValueKey(name),
+                  platform: widget.platform,
+                  label:
+                      '$name (${unit == LengthUnit.millimeters ? 'mm' : 'in'})',
+                  controller: fields[name]!,
+                  onChanged: (_) => setState(() {}),
+                ),
+              ),
+          ],
+        ],
       ),
-      _Section(
-        title: 'Preview',
-        detail: 'Check fit and borders before cutting.',
-        platform: platform,
+    );
+
+    final preview = _Section(
+      platform: widget.platform,
+      title: 'Preview',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (error != null)
+            Text(error, key: const Key('measurement-error'))
+          else ...[
+            Text(
+              'Outer cut: ${current!.outer.width} × ${current.outer.height} ${unit == LengthUnit.millimeters ? 'mm' : 'in'}',
+              key: const Key('outer-cut'),
+            ),
+            Text(
+              'Opening: ${current.opening.width} × ${current.opening.height} ${unit == LengthUnit.millimeters ? 'mm' : 'in'}',
+            ),
+            Text(
+              'Borders L/R/T/B: ${current.borders.left} / ${current.borders.right} / ${current.borders.top} / ${current.borders.bottom}',
+            ),
+            Text(
+              'Artwork overlap per edge H/V: ${current.horizontalOverlap} / ${current.verticalOverlap}',
+            ),
+            const SizedBox(height: 12),
+            AspectRatio(
+              aspectRatio: 1,
+              child: Semantics(
+                label:
+                    'Scaled mat layout. Outer ${current.outer.width} by ${current.outer.height}; opening ${current.opening.width} by ${current.opening.height}.',
+                image: true,
+                child: CustomPaint(
+                  key: const Key('mat-preview'),
+                  painter: _MatPainter(
+                    current,
+                    MediaQuery.highContrastOf(context),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              current.warnings.isEmpty
+                  ? 'No calculated fit warnings.'
+                  : 'Calculated fit warnings:',
+              key: const Key('fit-status'),
+            ),
+            for (final warning in current.warnings) Text(_warningText(warning)),
+          ],
+          const SizedBox(height: 12),
+          const Text(
+            'Assumes centered opening and square cuts. Check artwork, frame rebate, board and cutter tolerances with physical measurements before cutting. Calculated fit is not a guarantee.',
+          ),
+        ],
       ),
-    ];
+    );
+
     return SingleChildScrollView(
       child: Center(
         child: ConstrainedBox(
@@ -81,18 +261,14 @@ class _Workspace extends StatelessWidget {
             child: compact
                 ? Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      sections[0],
-                      const SizedBox(height: 16),
-                      sections[1],
-                    ],
+                    children: [form, const SizedBox(height: 16), preview],
                   )
                 : Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Expanded(child: sections[0]),
+                      Expanded(child: form),
                       const SizedBox(width: 24),
-                      Expanded(child: sections[1]),
+                      Expanded(child: preview),
                     ],
                   ),
           ),
@@ -102,15 +278,110 @@ class _Workspace extends StatelessWidget {
   }
 }
 
+String _warningText(MatWarning warning) => switch (warning) {
+  MatWarning.noHorizontalOverlap =>
+    'Opening width leaves no horizontal artwork overlap.',
+  MatWarning.noVerticalOverlap =>
+    'Opening height leaves no vertical artwork overlap.',
+  MatWarning.artworkExtendsBeyondBoardLeft =>
+    'Artwork extends beyond left mat edge.',
+  MatWarning.artworkExtendsBeyondBoardRight =>
+    'Artwork extends beyond right mat edge.',
+  MatWarning.artworkExtendsBeyondBoardTop =>
+    'Artwork extends beyond top mat edge.',
+  MatWarning.artworkExtendsBeyondBoardBottom =>
+    'Artwork extends beyond bottom mat edge.',
+  MatWarning.boardExceedsStock => 'Outer cut exceeds available stock.',
+  MatWarning.boardExceedsFrame => 'Outer cut exceeds frame dimensions.',
+};
+
+class _AdaptiveField extends StatelessWidget {
+  const _AdaptiveField({
+    super.key,
+    required this.platform,
+    required this.label,
+    required this.controller,
+    required this.onChanged,
+  });
+
+  final TargetPlatform platform;
+  final String label;
+  final TextEditingController controller;
+  final ValueChanged<String> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    if (platform == TargetPlatform.iOS) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label),
+          CupertinoTextField(
+            controller: controller,
+            onChanged: onChanged,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            placeholder: label,
+            inputFormatters: [
+              FilteringTextInputFormatter.allow(RegExp(r'[0-9.eE+\-]')),
+            ],
+          ),
+        ],
+      );
+    }
+    if (platform == TargetPlatform.windows) {
+      return fluent.InfoLabel(
+        label: label,
+        child: fluent.TextBox(
+          controller: controller,
+          onChanged: onChanged,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+        ),
+      );
+    }
+    return TextField(
+      controller: controller,
+      onChanged: onChanged,
+      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+      decoration: InputDecoration(
+        labelText: label,
+        border: const OutlineInputBorder(),
+      ),
+    );
+  }
+}
+
+class _AdaptiveButton extends StatelessWidget {
+  const _AdaptiveButton({
+    required this.platform,
+    required this.label,
+    required this.onPressed,
+  });
+
+  final TargetPlatform platform;
+  final String label;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    if (platform == TargetPlatform.iOS) {
+      return CupertinoButton(onPressed: onPressed, child: Text(label));
+    }
+    if (platform == TargetPlatform.windows) {
+      return fluent.Button(onPressed: onPressed, child: Text(label));
+    }
+    return OutlinedButton(onPressed: onPressed, child: Text(label));
+  }
+}
+
 class _Section extends StatelessWidget {
   const _Section({
     required this.title,
-    required this.detail,
+    required this.child,
     required this.platform,
   });
 
   final String title;
-  final String detail;
+  final Widget child;
   final TargetPlatform platform;
 
   @override
@@ -125,7 +396,7 @@ class _Section extends StatelessWidget {
             style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w600),
           ),
           const SizedBox(height: 12),
-          Text(detail),
+          child,
         ],
       ),
     );
@@ -145,4 +416,58 @@ class _Section extends StatelessWidget {
     }
     return Card(child: content);
   }
+}
+
+class _MatPainter extends CustomPainter {
+  const _MatPainter(this.plan, this.highContrast);
+
+  final MatPlan plan;
+  final bool highContrast;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final outer = plan.outer;
+    final scale =
+        math.min(size.width / outer.width, size.height / outer.height) * 0.9;
+    final x = (size.width - outer.width * scale) / 2;
+    final y = (size.height - outer.height * scale) / 2;
+    final board = Rect.fromLTWH(
+      x,
+      y,
+      outer.width * scale,
+      outer.height * scale,
+    );
+    final opening = Rect.fromLTWH(
+      x + plan.borders.left * scale,
+      y + plan.borders.top * scale,
+      plan.opening.width * scale,
+      plan.opening.height * scale,
+    );
+    canvas.drawRect(
+      Rect.fromLTWH(0, 0, size.width, size.height),
+      Paint()..color = const Color(0xffffffff),
+    );
+    canvas.drawRect(
+      board,
+      Paint()
+        ..color = highContrast
+            ? const Color(0xff000000)
+            : const Color(0xff345a77),
+    );
+    canvas.drawRect(opening, Paint()..color = const Color(0xffffffff));
+    canvas.drawRect(
+      opening,
+      Paint()
+        ..color = highContrast
+            ? const Color(0xff000000)
+            : const Color(0xff17334c)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2,
+    );
+    // ponytail: canvas depicts outer cut and centered opening only; annotations stay in selectable text above.
+  }
+
+  @override
+  bool shouldRepaint(covariant _MatPainter oldDelegate) =>
+      oldDelegate.plan != plan || oldDelegate.highContrast != highContrast;
 }
