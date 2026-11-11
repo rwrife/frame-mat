@@ -132,4 +132,46 @@ void main() {
       });
     }
   }
+  for (final platform in [
+    TargetPlatform.iOS,
+    TargetPlatform.android,
+    TargetPlatform.windows,
+  ]) {
+    testWidgets('$platform shows lower cut and frame rebate warning', (
+      tester,
+    ) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(900, 900);
+      try {
+        await tester.pumpWidget(FrameMatApp(platform: platform));
+        final toggle = find.text('Double mat: off (switch)');
+        await tester.ensureVisible(toggle);
+        await tester.pumpAndSettle();
+        await tester.tap(toggle);
+        await tester.pumpAndSettle();
+        expect(
+          find.textContaining('Lower opening: 182.0 × 282.0'),
+          findsOneWidget,
+        );
+        await enterMeasurement(tester, 'Frame aperture width', '280', platform);
+        await enterMeasurement(
+          tester,
+          'Frame aperture height',
+          '380',
+          platform,
+        );
+        expect(
+          find.text(
+            'Frame visible aperture exceeds board; frame may not retain mat.',
+          ),
+          findsOneWidget,
+        );
+        expect(tester.takeException(), isNull);
+      } finally {
+        await tester.pumpWidget(const SizedBox.shrink());
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      }
+    });
+  }
 }

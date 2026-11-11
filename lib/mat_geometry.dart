@@ -67,6 +67,9 @@ enum MatWarning {
   artworkExtendsBeyondBoardBottom,
   boardExceedsStock,
   boardExceedsFrame,
+  lowerOpeningNonPositive,
+  frameApertureExceedsBoard,
+  frameObscuresOpening,
 }
 
 /// Opening centered over artwork. Borders run from opening to outer cut edges.
@@ -79,14 +82,46 @@ class MatPlan {
     required this.borders,
     required this.stock,
     required this.frame,
+    this.lowerReveal,
+    this.frameAperture,
   });
 
   final LengthUnit unit;
   final Dimensions artwork;
+
+  /// Upper mat opening. Lower mat, when present, has a smaller opening.
   final Dimensions opening;
   final Borders borders;
   final Dimensions stock;
+
+  /// Maximum outer cut accepted by frame, not its visible aperture.
   final Dimensions frame;
+
+  /// Visible lower-mat strip at each upper opening edge, in [unit].
+  final Borders? lowerReveal;
+
+  /// Measured visible frame aperture; optional because rebate is frame-specific.
+  final Dimensions? frameAperture;
+
+  double get lowerOpeningWidth =>
+      opening.width - (lowerReveal?.left ?? 0) - (lowerReveal?.right ?? 0);
+  double get lowerOpeningHeight =>
+      opening.height - (lowerReveal?.top ?? 0) - (lowerReveal?.bottom ?? 0);
+
+  /// Positive only when lower opening is cuttable; never silently clamp it.
+  Dimensions? get lowerOpening =>
+      lowerReveal != null && lowerOpeningWidth > 0 && lowerOpeningHeight > 0
+      ? Dimensions(lowerOpeningWidth, lowerOpeningHeight)
+      : null;
+
+  double get lowerOpeningLeft => borders.left + (lowerReveal?.left ?? 0);
+  double get lowerOpeningTop => borders.top + (lowerReveal?.top ?? 0);
+
+  /// Visible artwork overlap measured at the actual lower cut, when present.
+  double get effectiveHorizontalOverlap =>
+      (artwork.width - (lowerOpening?.width ?? opening.width)) / 2;
+  double get effectiveVerticalOverlap =>
+      (artwork.height - (lowerOpening?.height ?? opening.height)) / 2;
 
   /// Outer mat cut size, not the uncut stock size.
   Dimensions get outer => Dimensions(
@@ -101,18 +136,30 @@ class MatPlan {
   /// Stable order for diagnostics; warnings never imply guaranteed physical fit.
   List<MatWarning> get warnings {
     final result = <MatWarning>[];
-    if (horizontalOverlap <= 0) result.add(MatWarning.noHorizontalOverlap);
-    if (verticalOverlap <= 0) result.add(MatWarning.noVerticalOverlap);
-    if (horizontalOverlap > borders.left) {
+    if (lowerReveal != null && lowerOpening == null) {
+      result.add(MatWarning.lowerOpeningNonPositive);
+    }
+    // Center artwork on upper opening; lower reveal shifts each lower cut edge.
+    final leftOverlap = horizontalOverlap + (lowerReveal?.left ?? 0);
+    final rightOverlap = horizontalOverlap + (lowerReveal?.right ?? 0);
+    final topOverlap = verticalOverlap + (lowerReveal?.top ?? 0);
+    final bottomOverlap = verticalOverlap + (lowerReveal?.bottom ?? 0);
+    if (leftOverlap <= 0 || rightOverlap <= 0) {
+      result.add(MatWarning.noHorizontalOverlap);
+    }
+    if (topOverlap <= 0 || bottomOverlap <= 0) {
+      result.add(MatWarning.noVerticalOverlap);
+    }
+    if (leftOverlap > borders.left + (lowerReveal?.left ?? 0)) {
       result.add(MatWarning.artworkExtendsBeyondBoardLeft);
     }
-    if (horizontalOverlap > borders.right) {
+    if (rightOverlap > borders.right + (lowerReveal?.right ?? 0)) {
       result.add(MatWarning.artworkExtendsBeyondBoardRight);
     }
-    if (verticalOverlap > borders.top) {
+    if (topOverlap > borders.top + (lowerReveal?.top ?? 0)) {
       result.add(MatWarning.artworkExtendsBeyondBoardTop);
     }
-    if (verticalOverlap > borders.bottom) {
+    if (bottomOverlap > borders.bottom + (lowerReveal?.bottom ?? 0)) {
       result.add(MatWarning.artworkExtendsBeyondBoardBottom);
     }
     if (outer.width > stock.width || outer.height > stock.height) {
@@ -120,6 +167,16 @@ class MatPlan {
     }
     if (outer.width > frame.width || outer.height > frame.height) {
       result.add(MatWarning.boardExceedsFrame);
+    }
+    if (frameAperture != null) {
+      if (frameAperture!.width > outer.width ||
+          frameAperture!.height > outer.height) {
+        result.add(MatWarning.frameApertureExceedsBoard);
+      }
+      if (frameAperture!.width < opening.width ||
+          frameAperture!.height < opening.height) {
+        result.add(MatWarning.frameObscuresOpening);
+      }
     }
     return List.unmodifiable(result);
   }
@@ -131,5 +188,7 @@ class MatPlan {
     borders: borders.inUnit(unit, to),
     stock: stock.inUnit(unit, to),
     frame: frame.inUnit(unit, to),
+    lowerReveal: lowerReveal?.inUnit(unit, to),
+    frameAperture: frameAperture?.inUnit(unit, to),
   );
 }
