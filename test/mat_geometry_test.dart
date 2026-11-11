@@ -7,6 +7,8 @@ MatPlan plan({
   Borders? borders,
   Dimensions? stock,
   Dimensions? frame,
+  Borders? lowerReveal,
+  Dimensions? frameAperture,
 }) => MatPlan(
   unit: LengthUnit.millimeters,
   artwork: artwork ?? Dimensions(200, 300),
@@ -14,9 +16,54 @@ MatPlan plan({
   borders: borders ?? Borders(40, 40, 50, 50),
   stock: stock ?? Dimensions(270, 390),
   frame: frame ?? Dimensions(270, 390),
+  lowerReveal: lowerReveal,
+  frameAperture: frameAperture,
 );
 
 void main() {
+  test('two offset cuts, exact frame aperture and conversion', () {
+    final p = plan(
+      lowerReveal: Borders(3, 5, 2, 4),
+      frameAperture: Dimensions(270, 390),
+    );
+    expect(p.lowerOpening!.width, 182);
+    expect(p.lowerOpening!.height, 284);
+    expect(p.lowerOpeningLeft, 43);
+    expect(p.lowerOpeningTop, 52);
+    expect(p.effectiveHorizontalOverlap, 9);
+    expect(p.warnings, isEmpty);
+    final inches = p.inUnit(LengthUnit.inches);
+    expect(inches.lowerReveal!.left, closeTo(3 / 25.4, 1e-12));
+    expect(inches.frameAperture!.width, closeTo(270 / 25.4, 1e-12));
+  });
+
+  test('incompatible lower cuts and rebate diagnostics never imply fit', () {
+    final p = plan(
+      lowerReveal: Borders(100, 100, 1, 1),
+      frameAperture: Dimensions(271, 280),
+    );
+    expect(p.lowerOpening, isNull);
+    expect(p.lowerOpeningWidth, -10);
+    expect(
+      p.warnings,
+      containsAll([
+        MatWarning.lowerOpeningNonPositive,
+        MatWarning.frameApertureExceedsBoard,
+        MatWarning.frameObscuresOpening,
+      ]),
+    );
+    expect(
+      plan(
+        lowerReveal: Borders(1, 1, 1, 1),
+        artwork: Dimensions(188, 288),
+      ).warnings,
+      containsAll([
+        MatWarning.noHorizontalOverlap,
+        MatWarning.noVerticalOverlap,
+      ]),
+    );
+  });
+
   test('exact board/stock/frame fit, overlap, no rounding', () {
     final p = plan();
     expect(p.outer.width, 270);

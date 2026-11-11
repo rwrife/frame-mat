@@ -79,6 +79,12 @@ class _WorkspaceState extends State<Workspace> {
     'Stock height': '390',
     'Frame width': '270',
     'Frame height': '390',
+    'Lower reveal left': '4',
+    'Lower reveal right': '4',
+    'Lower reveal top': '4',
+    'Lower reveal bottom': '4',
+    'Frame aperture width': '',
+    'Frame aperture height': '',
   };
 
   late final fields = {
@@ -86,6 +92,29 @@ class _WorkspaceState extends State<Workspace> {
       entry.key: TextEditingController(text: entry.value),
   };
   LengthUnit unit = LengthUnit.millimeters;
+  bool doubleMat = false;
+
+  Dimensions? get aperture {
+    final width = fields['Frame aperture width']!.text.trim();
+    final height = fields['Frame aperture height']!.text.trim();
+    if (width.isEmpty && height.isEmpty) return null;
+    if (width.isEmpty || height.isEmpty) {
+      throw const FormatException(
+        'Enter both frame aperture dimensions or leave both blank.',
+      );
+    }
+    return Dimensions(
+      value('Frame aperture width'),
+      value('Frame aperture height'),
+    );
+  }
+
+  Borders get reveal => Borders(
+    value('Lower reveal left'),
+    value('Lower reveal right'),
+    value('Lower reveal top'),
+    value('Lower reveal bottom'),
+  );
 
   @override
   void dispose() {
@@ -116,6 +145,8 @@ class _WorkspaceState extends State<Workspace> {
     ),
     stock: Dimensions(value('Stock width'), value('Stock height')),
     frame: Dimensions(value('Frame width'), value('Frame height')),
+    lowerReveal: doubleMat ? reveal : null,
+    frameAperture: aperture,
   );
 
   void changeUnit() {
@@ -126,7 +157,11 @@ class _WorkspaceState extends State<Workspace> {
     final converted = <String, String>{};
     try {
       for (final entry in fields.entries) {
-        converted[entry.key] = unit.convert(value(entry.key), next).toString();
+        if (entry.value.text.trim().isNotEmpty) {
+          converted[entry.key] = unit
+              .convert(value(entry.key), next)
+              .toString();
+        }
       }
     } on ArgumentError {
       return;
@@ -173,25 +208,39 @@ class _WorkspaceState extends State<Workspace> {
             'Border',
             'Stock',
             'Frame',
+            'Frame aperture',
+            'Lower reveal',
           ]) ...[
-            Text(group, style: const TextStyle(fontWeight: FontWeight.bold)),
-            const SizedBox(height: 6),
-            for (final name in defaults.keys.where(
-              (key) => group == 'Border'
-                  ? key.endsWith('border')
-                  : key.startsWith(group),
-            ))
-              Padding(
-                padding: const EdgeInsets.only(bottom: 10),
-                child: _AdaptiveField(
-                  key: ValueKey(name),
-                  platform: widget.platform,
-                  label:
-                      '$name (${unit == LengthUnit.millimeters ? 'mm' : 'in'})',
-                  controller: fields[name]!,
-                  onChanged: (_) => setState(() {}),
-                ),
+            if (group == 'Lower reveal')
+              _AdaptiveButton(
+                platform: widget.platform,
+                label: doubleMat
+                    ? 'Double mat: on (switch)'
+                    : 'Double mat: off (switch)',
+                onPressed: () => setState(() => doubleMat = !doubleMat),
               ),
+            if (group != 'Lower reveal' || doubleMat) ...[
+              Text(group, style: const TextStyle(fontWeight: FontWeight.bold)),
+              const SizedBox(height: 6),
+              for (final name in defaults.keys.where(
+                (key) => group == 'Border'
+                    ? key.endsWith('border')
+                    : group == 'Frame'
+                    ? key == 'Frame width' || key == 'Frame height'
+                    : key.startsWith(group),
+              ))
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: _AdaptiveField(
+                    key: ValueKey(name),
+                    platform: widget.platform,
+                    label:
+                        '$name (${unit == LengthUnit.millimeters ? 'mm' : 'in'})',
+                    controller: fields[name]!,
+                    onChanged: (_) => setState(() {}),
+                  ),
+                ),
+            ],
           ],
         ],
       ),
@@ -216,15 +265,31 @@ class _WorkspaceState extends State<Workspace> {
             Text(
               'Borders L/R/T/B: ${current.borders.left} / ${current.borders.right} / ${current.borders.top} / ${current.borders.bottom}',
             ),
+            if (doubleMat) ...[
+              Text(
+                'Lower opening: ${current.lowerOpening == null ? 'Not cuttable' : '${current.lowerOpening!.width} × ${current.lowerOpening!.height}'} ${unit == LengthUnit.millimeters ? 'mm' : 'in'}',
+              ),
+              Text(
+                'Lower reveal L/R/T/B: ${current.lowerReveal!.left} / ${current.lowerReveal!.right} / ${current.lowerReveal!.top} / ${current.lowerReveal!.bottom}',
+              ),
+            ],
+            if (current.frameAperture != null)
+              Text(
+                'Frame visible aperture: ${current.frameAperture!.width} × ${current.frameAperture!.height} ${unit == LengthUnit.millimeters ? 'mm' : 'in'}',
+              ),
             Text(
-              'Artwork overlap per edge H/V: ${current.horizontalOverlap} / ${current.verticalOverlap}',
+              'Artwork overlap per edge H/V: ${current.effectiveHorizontalOverlap} / ${current.effectiveVerticalOverlap}',
             ),
+            if (doubleMat)
+              const Text(
+                'Lower mat must match upper outer cut; allow for material thickness and independently check alignment.',
+              ),
             const SizedBox(height: 12),
             AspectRatio(
               aspectRatio: 1,
               child: Semantics(
                 label:
-                    'Scaled mat layout. Outer ${current.outer.width} by ${current.outer.height}; opening ${current.opening.width} by ${current.opening.height}.',
+                    'Scaled mat layout. Outer ${current.outer.width} by ${current.outer.height}; upper opening ${current.opening.width} by ${current.opening.height}${current.lowerReveal == null ? '' : '; lower opening ${current.lowerOpening == null ? 'not cuttable' : '${current.lowerOpening!.width} by ${current.lowerOpening!.height}'}'}.',
                 image: true,
                 child: CustomPaint(
                   key: const Key('mat-preview'),
@@ -293,6 +358,12 @@ String _warningText(MatWarning warning) => switch (warning) {
     'Artwork extends beyond bottom mat edge.',
   MatWarning.boardExceedsStock => 'Outer cut exceeds available stock.',
   MatWarning.boardExceedsFrame => 'Outer cut exceeds frame dimensions.',
+  MatWarning.lowerOpeningNonPositive =>
+    'Lower opening is zero or negative; reduce lower reveal.',
+  MatWarning.frameApertureExceedsBoard =>
+    'Frame visible aperture exceeds board; frame may not retain mat.',
+  MatWarning.frameObscuresOpening =>
+    'Frame visible aperture is smaller than upper opening; frame hides artwork or reveal.',
 };
 
 class _AdaptiveField extends StatelessWidget {
@@ -455,6 +526,32 @@ class _MatPainter extends CustomPainter {
             : const Color(0xff345a77),
     );
     canvas.drawRect(opening, Paint()..color = const Color(0xffffffff));
+    if (plan.lowerReveal != null) {
+      final lower = plan.lowerOpening;
+      if (lower != null) {
+        final inner = Rect.fromLTWH(
+          x + plan.lowerOpeningLeft * scale,
+          y + plan.lowerOpeningTop * scale,
+          lower.width * scale,
+          lower.height * scale,
+        );
+        canvas.drawRect(
+          opening,
+          Paint()
+            ..color = highContrast
+                ? const Color(0xff000000)
+                : const Color(0xffb57048),
+        );
+        canvas.drawRect(inner, Paint()..color = const Color(0xffffffff));
+        canvas.drawRect(
+          inner,
+          Paint()
+            ..color = const Color(0xff17334c)
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 2,
+        );
+      }
+    }
     canvas.drawRect(
       opening,
       Paint()
@@ -464,7 +561,7 @@ class _MatPainter extends CustomPainter {
         ..style = PaintingStyle.stroke
         ..strokeWidth = 2,
     );
-    // ponytail: canvas depicts outer cut and centered opening only; annotations stay in selectable text above.
+    // ponytail: frame rebate remains numerical; visual bezel requires measured rebate on each edge.
   }
 
   @override

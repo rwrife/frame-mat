@@ -13,10 +13,20 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Test with pinned Flutter in Docker
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.44.0'
+          channel: stable
+          cache: true
+      - name: Test with pinned Flutter
         run: |
-          docker build -f .github/Dockerfile.flutter-test -t frame-mat-flutter-test .
-          docker run -e HOME=/tmp -v "$PWD:/app" frame-mat-flutter-test sh -c 'git config --global --add safe.directory /opt/flutter && git config --global --add safe.directory /app && flutter pub get --enforce-lockfile && dart format --output=none --set-exit-if-changed lib test && flutter analyze && flutter test'
+          flutter --version | grep -F 'Flutter 3.44.0 '
+          dart --version 2>&1 | grep -F 'Dart SDK version: 3.12.0'
+          flutter pub get --enforce-lockfile
+          dart format --output=none --set-exit-if-changed lib test
+          flutter analyze
+          flutter test
+          # ponytail: local Docker covers Linux isolation; hosted CI avoids Ubuntu apt DNS.
 
   windows:
     runs-on: windows-latest
