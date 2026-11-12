@@ -5,6 +5,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:frame_mat/main.dart';
+import 'package:frame_mat/draft_store.dart';
 
 // Find an input in the scrollable phone form without assuming it is visible.
 Future<void> enterMeasurement(
@@ -27,6 +28,17 @@ Future<void> enterMeasurement(
   await tester.pumpAndSettle();
   await tester.enterText(field, text);
   await tester.pumpAndSettle();
+}
+
+class _MemoryStore extends DraftStore {
+  _MemoryStore() : super(Directory('.'));
+  List<MatDraft> saved = [];
+  @override
+  Future<List<MatDraft>> load() async => saved;
+  @override
+  Future<void> save(List<MatDraft> drafts) async {
+    saved = drafts;
+  }
 }
 
 void main() {
@@ -171,6 +183,61 @@ void main() {
         await tester.pumpWidget(const SizedBox.shrink());
         tester.view.resetPhysicalSize();
         tester.view.resetDevicePixelRatio();
+      }
+    });
+  }
+  for (final platform in [
+    TargetPlatform.iOS,
+    TargetPlatform.android,
+    TargetPlatform.windows,
+  ]) {
+    testWidgets('$platform saves and switches local draft in UI', (
+      tester,
+    ) async {
+      final store = _MemoryStore();
+      try {
+        await tester.pumpWidget(FrameMatApp(platform: platform, store: store));
+        await tester.pump();
+        final nameField = find.descendant(
+          of: find.byKey(const ValueKey('Draft name')),
+          matching: find.byType(
+            platform == TargetPlatform.iOS
+                ? CupertinoTextField
+                : platform == TargetPlatform.windows
+                ? fluent.TextBox
+                : TextField,
+          ),
+        );
+        await tester.ensureVisible(nameField);
+        await tester.enterText(nameField, 'MyMat');
+        await enterMeasurement(tester, 'Artwork width', '150', platform);
+        final saveBtn = find.text('Save draft');
+        await tester.ensureVisible(saveBtn);
+        await tester.tap(saveBtn);
+        await tester.pump();
+        expect(find.text('Open MyMat'), findsOneWidget);
+
+        // Edit local field, then re-open saved draft and verify restored value.
+        await enterMeasurement(tester, 'Artwork width', '999', platform);
+        expect(find.textContaining('999'), findsWidgets);
+        await tester.ensureVisible(find.text('Open MyMat'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Open MyMat'));
+        await tester.pumpAndSettle();
+        expect(store.saved.single.values['Artwork width'], '150');
+        final artwork = find.descendant(
+          of: find.byKey(const ValueKey('Artwork width')),
+          matching: find.byType(
+            platform == TargetPlatform.iOS
+                ? CupertinoTextField
+                : platform == TargetPlatform.windows
+                ? fluent.TextBox
+                : TextField,
+          ),
+        );
+        expect((tester.widget(artwork) as dynamic).controller.text, '150');
+      } finally {
+        await tester.pumpWidget(const SizedBox.shrink());
       }
     });
   }
