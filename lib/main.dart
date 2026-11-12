@@ -1,6 +1,9 @@
 import 'dart:math' as math;
 
+import 'package:file_picker/file_picker.dart';
+import 'package:frame_mat/draft_store.dart';
 import 'package:fluent_ui/fluent_ui.dart' as fluent;
+import 'package:path_provider/path_provider.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -10,9 +13,10 @@ import 'package:frame_mat/mat_geometry.dart';
 void main() => runApp(const FrameMatApp());
 
 class FrameMatApp extends StatelessWidget {
-  const FrameMatApp({super.key, this.platform});
+  const FrameMatApp({super.key, this.platform, this.store});
 
   final TargetPlatform? platform;
+  final DraftStore? store;
 
   @override
   Widget build(BuildContext context) {
@@ -24,7 +28,9 @@ class FrameMatApp extends StatelessWidget {
           navigationBar: const CupertinoNavigationBar(
             middle: Text('Frame Mat'),
           ),
-          child: SafeArea(child: Workspace(platform: target)),
+          child: SafeArea(
+            child: Workspace(platform: target, store: store),
+          ),
         ),
       );
     }
@@ -38,7 +44,7 @@ class FrameMatApp extends StatelessWidget {
               fluent.PaneItem(
                 icon: const fluent.Icon(fluent.FluentIcons.picture),
                 title: const Text('Workspace'),
-                body: Workspace(platform: target),
+                body: Workspace(platform: target, store: store),
               ),
             ],
           ),
@@ -50,16 +56,17 @@ class FrameMatApp extends StatelessWidget {
       theme: ThemeData(useMaterial3: true, colorSchemeSeed: Colors.blueGrey),
       home: Scaffold(
         appBar: AppBar(title: const Text('Frame Mat')),
-        body: Workspace(platform: target),
+        body: Workspace(platform: target, store: store),
       ),
     );
   }
 }
 
 class Workspace extends StatefulWidget {
-  const Workspace({super.key, required this.platform});
+  const Workspace({super.key, required this.platform, this.store});
 
   final TargetPlatform platform;
+  final DraftStore? store;
 
   @override
   State<Workspace> createState() => _WorkspaceState();
@@ -93,6 +100,197 @@ class _WorkspaceState extends State<Workspace> {
   };
   LengthUnit unit = LengthUnit.millimeters;
   bool doubleMat = false;
+  final draftName = TextEditingController();
+  DraftStore? _store;
+  List<MatDraft> drafts = [];
+  String? storageError;
+  bool busy = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadDrafts();
+  }
+
+  Future<void> _loadDrafts() async {
+    try {
+      final store =
+          widget.store ?? DraftStore(await getApplicationSupportDirectory());
+      final loaded = await store.load();
+      if (mounted) {
+        setState(() {
+          _store = store;
+          drafts = loaded;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => storageError = 'Could not load drafts: $e');
+      }
+    }
+  }
+
+  // All mutations share one busy gate; failed writes keep in-memory drafts intact.
+  Future<void> _run(Future<void> Function() action) async {
+    if (busy) return;
+    setState(() {
+      busy = true;
+      storageError = null;
+    });
+    try {
+      await action();
+    } catch (e) {
+      if (mounted) {
+        setState(() => storageError = '$e');
+      }
+    } finally {
+      if (mounted) {
+        setState(() => busy = false);
+      }
+    }
+  }
+
+  Future<bool> _confirm(String title) async {
+    if (widget.platform == TargetPlatform.iOS) {
+      return await showCupertinoDialog<bool>(
+            context: context,
+            builder: (context) => CupertinoAlertDialog(
+              title: Text(title),
+              actions: [
+                CupertinoDialogAction(
+                  child: const Text('Cancel'),
+                  onPressed: () => Navigator.pop(context, false),
+                ),
+                CupertinoDialogAction(
+                  isDestructiveAction: true,
+                  child: const Text('Continue'),
+                  onPressed: () => Navigator.pop(context, true),
+                ),
+              ],
+            ),
+          ) ??
+          false;
+    }
+    if (widget.platform == TargetPlatform.windows) {
+      return await fluent.showDialog<bool>(
+            context: context,
+            builder: (context) => fluent.ContentDialog(
+              title: Text(title),
+              actions: [
+                fluent.Button(
+                  child: const Text('Cancel'),
+                  onPressed: () => Navigator.pop(context, false),
+                ),
+                fluent.Button(
+                  child: const Text('Continue'),
+                  onPressed: () => Navigator.pop(context, true),
+                ),
+              ],
+            ),
+          ) ??
+          false;
+    }
+    return await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: Text(title),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Cancel'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text('Continue'),
+              ),
+            ],
+          ),
+        ) ??
+        false;
+  }
+
+  Future<void> _saveDraft() => _run(() async {
+    final store = _store;
+    if (store == null) throw StateError('Draft store unavailable.');
+    final draft = MatDraft(draftName.text.trim(), unit, doubleMat, {
+      for (final entry in fields.entries) entry.key: entry.value.text,
+    });
+    final existing = drafts.indexWhere((d) => d.name == draft.name);
+    if (existing >= 0 &&
+        !await _confirm('Replace saved draft ${draft.name}?')) {
+      return;
+    }
+    if (!mounted) return;
+    final next = [...drafts];
+    if (existing >= 0) {
+      next[existing] = draft;
+    } else {
+      next.add(draft);
+    }
+    await store.save(next);
+    if (mounted) setState(() => drafts = next);
+  });
+
+  Future<void> _deleteDraft(MatDraft draft) => _run(() async {
+    if (!await _confirm('Delete saved draft ${draft.name}?')) return;
+    if (!mounted) return;
+    final next = drafts.where((item) => item.name != draft.name).toList();
+    await _store!.save(next);
+    if (mounted) setState(() => drafts = next);
+  });
+
+  Future<void> _importBackup() => _run(() async {
+    final picked = await FilePicker.pickFile(
+      type: FileType.custom,
+      allowedExtensions: ['json'],
+    );
+    if (picked == null) {
+      return;
+    }
+    final bytes = await picked.readAsBytes();
+    if (bytes.length > DraftStore.maxBytes) {
+      throw const FormatException('Backup exceeds 1 MiB.');
+    }
+    final imported = _store!.parse(
+      bytes,
+    ); // Validate before asking to replace local data.
+    if (!mounted ||
+        !await _confirm(
+          'Replace all local drafts with ${imported.length} imported drafts?',
+        )) {
+      return;
+    }
+    await _store!.save(imported);
+    if (mounted) {
+      setState(() => drafts = imported);
+    }
+  });
+
+  Future<void> _exportBackup() => _run(() async {
+    // Native save picker writes user-selected bytes; it may replace a file.
+    if (!await _confirm(
+      'Export backup? Choosing an existing file may replace it.',
+    )) {
+      return;
+    }
+    if (!mounted) return;
+    final bytes = _store!.encode(drafts);
+    await FilePicker.saveFile(
+      fileName: 'frame-mat-backup.json',
+      bytes: Uint8List.fromList(bytes),
+    );
+  });
+
+  void _openDraft(MatDraft draft) {
+    setState(() {
+      for (final entry in draft.values.entries) {
+        fields[entry.key]!.text = entry.value;
+      }
+      unit = draft.unit;
+      doubleMat = draft.doubleMat;
+      draftName.text = draft.name;
+    });
+  }
 
   Dimensions? get aperture {
     final width = fields['Frame aperture width']!.text.trim();
@@ -118,6 +316,7 @@ class _WorkspaceState extends State<Workspace> {
 
   @override
   void dispose() {
+    draftName.dispose();
     for (final controller in fields.values) {
       controller.dispose();
     }
@@ -201,6 +400,54 @@ class _WorkspaceState extends State<Workspace> {
             label:
                 'Unit: ${unit == LengthUnit.millimeters ? 'mm' : 'in'} (switch)',
           ),
+          const SizedBox(height: 12),
+          if (storageError != null)
+            Text(storageError!, key: const Key('storage-error')),
+          _AdaptiveField(
+            key: const ValueKey('Draft name'),
+            platform: widget.platform,
+            label: 'Draft name',
+            controller: draftName,
+            onChanged: (_) {},
+            numeric: false,
+          ),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              _AdaptiveButton(
+                platform: widget.platform,
+                label: 'Save draft',
+                onPressed: busy ? null : _saveDraft,
+              ),
+              _AdaptiveButton(
+                platform: widget.platform,
+                label: 'Import backup',
+                onPressed: busy ? null : _importBackup,
+              ),
+              _AdaptiveButton(
+                platform: widget.platform,
+                label: 'Export backup',
+                onPressed: busy ? null : _exportBackup,
+              ),
+            ],
+          ),
+          for (final draft in drafts)
+            Wrap(
+              spacing: 8,
+              children: [
+                _AdaptiveButton(
+                  platform: widget.platform,
+                  label: 'Open ${draft.name}',
+                  onPressed: busy ? null : () => _openDraft(draft),
+                ),
+                _AdaptiveButton(
+                  platform: widget.platform,
+                  label: 'Delete ${draft.name}',
+                  onPressed: busy ? null : () => _deleteDraft(draft),
+                ),
+              ],
+            ),
           const SizedBox(height: 12),
           for (final group in [
             'Artwork',
@@ -373,12 +620,14 @@ class _AdaptiveField extends StatelessWidget {
     required this.label,
     required this.controller,
     required this.onChanged,
+    this.numeric = true,
   });
 
   final TargetPlatform platform;
   final String label;
   final TextEditingController controller;
   final ValueChanged<String> onChanged;
+  final bool numeric;
 
   @override
   Widget build(BuildContext context) {
@@ -390,11 +639,13 @@ class _AdaptiveField extends StatelessWidget {
           CupertinoTextField(
             controller: controller,
             onChanged: onChanged,
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            keyboardType: numeric
+                ? const TextInputType.numberWithOptions(decimal: true)
+                : TextInputType.text,
             placeholder: label,
-            inputFormatters: [
-              FilteringTextInputFormatter.allow(RegExp(r'[0-9.eE+\-]')),
-            ],
+            inputFormatters: numeric
+                ? [FilteringTextInputFormatter.allow(RegExp(r'[0-9.eE+\-]'))]
+                : null,
           ),
         ],
       );
@@ -405,14 +656,18 @@ class _AdaptiveField extends StatelessWidget {
         child: fluent.TextBox(
           controller: controller,
           onChanged: onChanged,
-          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          keyboardType: numeric
+              ? const TextInputType.numberWithOptions(decimal: true)
+              : TextInputType.text,
         ),
       );
     }
     return TextField(
       controller: controller,
       onChanged: onChanged,
-      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+      keyboardType: numeric
+          ? const TextInputType.numberWithOptions(decimal: true)
+          : TextInputType.text,
       decoration: InputDecoration(
         labelText: label,
         border: const OutlineInputBorder(),
@@ -430,7 +685,7 @@ class _AdaptiveButton extends StatelessWidget {
 
   final TargetPlatform platform;
   final String label;
-  final VoidCallback onPressed;
+  final VoidCallback? onPressed;
 
   @override
   Widget build(BuildContext context) {
