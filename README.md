@@ -18,7 +18,12 @@ Home framers and craft clubs often discover too late that a mount-board opening 
 
 Non-goals: automatic camera measurement, commerce, image editing, cloud accounts, irreversible cutting instructions, multi-user sync.
 
+## Local drafts and backups
+Save named drafts on this device, reopen them after restarting, or delete them. Replacing a saved draft, opening a draft over current measurements, deleting a draft, and importing a backup require confirmation. Export a versioned JSON backup to transfer drafts without cloud services. Import validates the complete backup before replacing local drafts; invalid input leaves saved drafts unchanged. Interrupted local writes retain a recoverable previous snapshot.
+
 ## Platform and privacy
+The minimum supported iOS version is 14.0, required by the native file picker used for JSON backup import and export.
+
 Flutter single codebase for Windows (primary release), Android and iOS, including Android tablets and iPad. `com.infinityball.framemat` is Android application ID, iOS bundle ID and planned Windows identity. UX strategy A: Cupertino on iOS, Material 3 on Android and Fluent on Windows, behind a thin adaptive widget seam; never ship starter Material UI on iOS or phone UI on Windows. Local storage only; photo/file permission only on explicit import/export. No analytics, account, network access or medical claims. No secret values in repo. Store copy: `AppStore/description.txt`.
 
 Generated `AppStore/icon.png` (OpenAI Images `gpt-image-2.5-flare`) is wired into Windows ICO, Android mipmaps and iOS AppIcon rasters; source artwork is outside repo under `~/media/frame-mat/images/20261109T051040Z_openai_d57c46.png`. Icon appearance and compiled resources still need platform checks.
