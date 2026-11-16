@@ -281,7 +281,13 @@ class _WorkspaceState extends State<Workspace> {
     );
   });
 
-  void _openDraft(MatDraft draft) {
+  Future<void> _openDraft(MatDraft draft) => _run(() async {
+    if (!await _confirm(
+      'Open saved draft ${draft.name}? Current measurements will be replaced.',
+    )) {
+      return;
+    }
+    if (!mounted) return;
     setState(() {
       for (final entry in draft.values.entries) {
         fields[entry.key]!.text = entry.value;
@@ -290,7 +296,7 @@ class _WorkspaceState extends State<Workspace> {
       doubleMat = draft.doubleMat;
       draftName.text = draft.name;
     });
-  }
+  });
 
   Dimensions? get aperture {
     final width = fields['Frame aperture width']!.text.trim();

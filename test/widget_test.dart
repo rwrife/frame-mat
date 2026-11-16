@@ -224,7 +224,6 @@ void main() {
         await tester.pumpAndSettle();
         await tester.tap(find.text('Open MyMat'));
         await tester.pumpAndSettle();
-        expect(store.saved.single.values['Artwork width'], '150');
         final artwork = find.descendant(
           of: find.byKey(const ValueKey('Artwork width')),
           matching: find.byType(
@@ -235,6 +234,20 @@ void main() {
                 : TextField,
           ),
         );
+        expect(
+          find.text(
+            'Open saved draft MyMat? Current measurements will be replaced.',
+          ),
+          findsOneWidget,
+        );
+        await tester.tap(find.text('Cancel'));
+        await tester.pumpAndSettle();
+        expect((tester.widget(artwork) as dynamic).controller.text, '999');
+        expect(store.saved.single.values['Artwork width'], '150');
+        await tester.tap(find.text('Open MyMat'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Continue'));
+        await tester.pumpAndSettle();
         expect((tester.widget(artwork) as dynamic).controller.text, '150');
       } finally {
         await tester.pumpWidget(const SizedBox.shrink());
