@@ -2,6 +2,8 @@ import 'dart:math' as math;
 
 import 'package:file_picker/file_picker.dart';
 import 'package:frame_mat/draft_store.dart';
+import 'package:frame_mat/mat_worksheet_pdf.dart';
+import 'package:frame_mat/mat_warning_text.dart';
 import 'package:fluent_ui/fluent_ui.dart' as fluent;
 import 'package:path_provider/path_provider.dart';
 import 'package:flutter/cupertino.dart';
@@ -281,6 +283,24 @@ class _WorkspaceState extends State<Workspace> {
     );
   });
 
+  Future<void> _exportWorksheet() => _run(() async {
+    if (!await _confirm(
+      'Export PDF worksheet? Verify all measurements before cutting.',
+    )) {
+      return;
+    }
+    if (!mounted) return;
+    await FilePicker.saveFile(
+      fileName: 'frame-mat-worksheet.pdf',
+      bytes: Uint8List.fromList(
+        createMatWorksheetPdf(
+          plan,
+          draftName: draftName.text.trim().isEmpty ? null : draftName.text.trim(),
+        ),
+      ),
+    );
+  });
+
   Future<void> _openDraft(MatDraft draft) => _run(() async {
     if (!await _confirm(
       'Open saved draft ${draft.name}? Current measurements will be replaced.',
@@ -436,6 +456,11 @@ class _WorkspaceState extends State<Workspace> {
                 label: 'Export backup',
                 onPressed: busy ? null : _exportBackup,
               ),
+              _AdaptiveButton(
+                platform: widget.platform,
+                label: 'Export PDF worksheet',
+                onPressed: busy ? null : _exportWorksheet,
+              ),
             ],
           ),
           for (final draft in drafts)
@@ -560,7 +585,8 @@ class _WorkspaceState extends State<Workspace> {
                   : 'Calculated fit warnings:',
               key: const Key('fit-status'),
             ),
-            for (final warning in current.warnings) Text(_warningText(warning)),
+            for (final warning in current.warnings)
+              Text(matWarningText(warning)),
           ],
           const SizedBox(height: 12),
           const Text(
@@ -595,29 +621,6 @@ class _WorkspaceState extends State<Workspace> {
     );
   }
 }
-
-String _warningText(MatWarning warning) => switch (warning) {
-  MatWarning.noHorizontalOverlap =>
-    'Opening width leaves no horizontal artwork overlap.',
-  MatWarning.noVerticalOverlap =>
-    'Opening height leaves no vertical artwork overlap.',
-  MatWarning.artworkExtendsBeyondBoardLeft =>
-    'Artwork extends beyond left mat edge.',
-  MatWarning.artworkExtendsBeyondBoardRight =>
-    'Artwork extends beyond right mat edge.',
-  MatWarning.artworkExtendsBeyondBoardTop =>
-    'Artwork extends beyond top mat edge.',
-  MatWarning.artworkExtendsBeyondBoardBottom =>
-    'Artwork extends beyond bottom mat edge.',
-  MatWarning.boardExceedsStock => 'Outer cut exceeds available stock.',
-  MatWarning.boardExceedsFrame => 'Outer cut exceeds frame dimensions.',
-  MatWarning.lowerOpeningNonPositive =>
-    'Lower opening is zero or negative; reduce lower reveal.',
-  MatWarning.frameApertureExceedsBoard =>
-    'Frame visible aperture exceeds board; frame may not retain mat.',
-  MatWarning.frameObscuresOpening =>
-    'Frame visible aperture is smaller than upper opening; frame hides artwork or reveal.',
-};
 
 class _AdaptiveField extends StatelessWidget {
   const _AdaptiveField({

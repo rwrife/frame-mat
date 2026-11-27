@@ -254,4 +254,29 @@ void main() {
       }
     });
   }
+  for (final platform in [
+    TargetPlatform.iOS,
+    TargetPlatform.android,
+    TargetPlatform.windows,
+  ]) {
+    testWidgets('$platform confirms before exporting a PDF worksheet', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        FrameMatApp(platform: platform, store: _MemoryStore()),
+      );
+      await tester.pump();
+      await tester.ensureVisible(find.text('Export PDF worksheet'));
+      await tester.tap(find.text('Export PDF worksheet'));
+      await tester.pumpAndSettle();
+      expect(
+        find.text('Export PDF worksheet? Verify all measurements before cutting.'),
+        findsOneWidget,
+      );
+      await tester.tap(find.text('Cancel'));
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox.shrink());
+    });
+  }
 }
