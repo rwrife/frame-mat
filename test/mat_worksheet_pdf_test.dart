@@ -4,21 +4,19 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:frame_mat/mat_geometry.dart';
 import 'package:frame_mat/mat_worksheet_pdf.dart';
 
-MatPlan _plan({
-  bool doubleMat = false,
-  bool invalidLowerCut = false,
-}) => MatPlan(
-  unit: LengthUnit.millimeters,
-  artwork: Dimensions(200, 300),
-  opening: Dimensions(190, 290),
-  borders: Borders(40, 40, 50, 50),
-  stock: Dimensions(invalidLowerCut ? 260 : 270, 390),
-  frame: Dimensions(270, 390),
-  lowerReveal: doubleMat
-      ? Borders(invalidLowerCut ? 100 : 4, invalidLowerCut ? 100 : 4, 4, 4)
-      : null,
-  frameAperture: Dimensions(270, 390),
-);
+MatPlan _plan({bool doubleMat = false, bool invalidLowerCut = false}) =>
+    MatPlan(
+      unit: LengthUnit.millimeters,
+      artwork: Dimensions(200, 300),
+      opening: Dimensions(190, 290),
+      borders: Borders(40, 40, 50, 50),
+      stock: Dimensions(invalidLowerCut ? 260 : 270, 390),
+      frame: Dimensions(270, 390),
+      lowerReveal: doubleMat
+          ? Borders(invalidLowerCut ? 100 : 4, invalidLowerCut ? 100 : 4, 4, 4)
+          : null,
+      frameAperture: Dimensions(270, 390),
+    );
 
 void main() {
   test('writes a valid one-page PDF with exact dimensional rows', () {
@@ -28,12 +26,20 @@ void main() {
     expect(pdf, contains('/MediaBox [0 0 612.0 792.0]'));
     expect(pdf, contains('Outer board cut: 270.0 x 390.0 mm'));
     expect(pdf, contains('Frame maximum outer cut: 270.0 x 390.0 mm'));
-    expect(pdf, contains('Upper borders L/R/T/B: 40.0 / 40.0 / 50.0 / 50.0 mm'));
+    expect(
+      pdf,
+      contains('Upper borders L/R/T/B: 40.0 / 40.0 / 50.0 / 50.0 mm'),
+    );
     expect(pdf, contains('Measured frame aperture: 270.0 x 390.0 mm'));
     expect(pdf, contains('Lower opening: 182.0 x 282.0 mm'));
     expect(pdf, contains('Lower reveal L/R/T/B: 4.0 / 4.0 / 4.0 / 4.0 mm'));
     expect(pdf, contains('None for the entered dimensions.'));
-    expect(pdf, contains('All measurements are user-entered. Verify them before cutting.'));
+    expect(
+      pdf,
+      contains(
+        'All measurements are user-entered. Verify them before cutting.',
+      ),
+    );
     expect(pdf, contains('diagram is illustrative, not 1:1.'));
     expect(pdf, contains('Calculated fit is not a guarantee.'));
 
@@ -52,7 +58,10 @@ void main() {
     );
     expect(pdf, contains(r'Draft: Gallery \(west\)\\ 1'));
     expect(pdf, contains('Lower opening: NOT CUTTABLE'));
-    expect(pdf, contains('Lower opening is zero or negative; reduce lower reveal.'));
+    expect(
+      pdf,
+      contains('Lower opening is zero or negative; reduce lower reveal.'),
+    );
     expect(pdf, contains('Outer cut exceeds available stock.'));
   });
 

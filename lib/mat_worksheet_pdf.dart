@@ -12,7 +12,13 @@ List<int> createMatWorksheetPdf(MatPlan plan, {String? draftName}) {
   const diagramBottom = 425.0;
   final content = StringBuffer();
 
-  void text(String value, double x, double y, {double size = 9, bool bold = false}) {
+  void text(
+    String value,
+    double x,
+    double y, {
+    double size = 9,
+    bool bold = false,
+  }) {
     final font = bold ? 'F2' : 'F1';
     content.writeln(
       'BT /$font ${_number(size)} Tf ${_number(x)} ${_number(y)} Td '
@@ -27,9 +33,21 @@ List<int> createMatWorksheetPdf(MatPlan plan, {String? draftName}) {
       '$left / $right / $top / $bottom $unit';
 
   text('Frame Mat - Cutting Worksheet', margin, 750, size: 18, bold: true);
-  text('All measurements are user-entered. Verify them before cutting.', margin, 728);
-  text('Assumes a centered opening and square cuts; diagram is illustrative, not 1:1.', margin, 712);
-  text('Draft: ${draftName == null || draftName.isEmpty ? 'Unsaved plan' : draftName}', margin, 692);
+  text(
+    'All measurements are user-entered. Verify them before cutting.',
+    margin,
+    728,
+  );
+  text(
+    'Assumes a centered opening and square cuts; diagram is illustrative, not 1:1.',
+    margin,
+    712,
+  );
+  text(
+    'Draft: ${draftName == null || draftName.isEmpty ? 'Unsaved plan' : draftName}',
+    margin,
+    692,
+  );
   text('MAT LAYOUT', margin, 660, size: 10, bold: true);
 
   final outer = plan.outer;
@@ -123,8 +141,18 @@ List<int> createMatWorksheetPdf(MatPlan plan, {String? draftName}) {
       y -= 11;
     }
   }
-  text('Check artwork, frame rebate, board and cutter tolerances with physical measurements.', margin, 52, size: 8);
-  text('Calculated fit is not a guarantee. Never use this diagram as a 1:1 cutting template.', margin, 40, size: 8);
+  text(
+    'Check artwork, frame rebate, board and cutter tolerances with physical measurements.',
+    margin,
+    52,
+    size: 8,
+  );
+  text(
+    'Calculated fit is not a guarantee. Never use this diagram as a 1:1 cutting template.',
+    margin,
+    40,
+    size: 8,
+  );
 
   final stream = content.toString();
   final streamBytes = ascii.encode(stream);
@@ -135,7 +163,8 @@ List<int> createMatWorksheetPdf(MatPlan plan, {String? draftName}) {
         '/Resources << /Font << /F1 4 0 R /F2 5 0 R >> >> /Contents 6 0 R >>',
     '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>',
     '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>',
-    '<< /Length ${streamBytes.length} >>\nstream\n$stream' 'endstream',
+    '<< /Length ${streamBytes.length} >>\nstream\n$stream'
+        'endstream',
   ];
   final output = <int>[];
   void append(String value) => output.addAll(ascii.encode(value));

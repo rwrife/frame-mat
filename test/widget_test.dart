@@ -270,7 +270,9 @@ void main() {
       await tester.tap(find.text('Export PDF worksheet'));
       await tester.pumpAndSettle();
       expect(
-        find.text('Export PDF worksheet? Verify all measurements before cutting.'),
+        find.text(
+          'Export PDF worksheet? Verify all measurements before cutting.',
+        ),
         findsOneWidget,
       );
       await tester.tap(find.text('Cancel'));

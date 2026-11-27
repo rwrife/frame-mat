@@ -295,7 +295,9 @@ class _WorkspaceState extends State<Workspace> {
       bytes: Uint8List.fromList(
         createMatWorksheetPdf(
           plan,
-          draftName: draftName.text.trim().isEmpty ? null : draftName.text.trim(),
+          draftName: draftName.text.trim().isEmpty
+              ? null
+              : draftName.text.trim(),
         ),
       ),
     );
