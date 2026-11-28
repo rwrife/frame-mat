@@ -8,13 +8,14 @@ Home framers and craft clubs often discover too late that a mount-board opening 
 ## Intended workflow
 1. Measure artwork width/height and desired visible margin in millimeters; record frame aperture and board dimensions.
 2. Enter top, side and bottom mat borders. Preview visible opening and outer board at scale; warn on nonpositive opening, insufficient overlap or board larger than frame aperture.
-3. Save a draft locally; print or export a dimensioned worksheet and backup JSON before cutting. Verify physical measurements independently; app is not a cutting machine or safety-rated tool.
+3. Save a draft locally; export a dimensioned PDF worksheet and backup JSON before cutting. Verify physical measurements independently; the app is not a cutting machine or safety-rated tool.
 
-## MVP, not yet built
-- Single and double mat dimensions, explicit units and deterministic geometry with tested edge cases.
-- Draft list and a dimensioned, responsive preview; touch and keyboard/mouse input on phones, tablets and Windows.
-- Local save/load and user-owned JSON backup plus print-friendly PDF worksheet.
-- Readable high contrast, scalable text, screen-reader labels and full Windows keyboard navigation.
+## Current features
+- Single- and double-mat measurements with explicit units, edge overlap, frame-aperture and stock-fit diagnostics.
+- Responsive preview and adaptive iOS Cupertino, Android Material 3 and Windows Fluent interfaces.
+- Local named drafts and versioned JSON backup import/export, with validation and crash-recovery for saved drafts.
+- One-page PDF cutting worksheet with exact entered measurements, optional double-mat details, fit warnings and physical-measurement disclaimer. Its diagram is illustrative, not a 1:1 template.
+- Scalable text, screen-reader semantics, keyboard focus and high-contrast preview support.
 
 Non-goals: automatic camera measurement, commerce, image editing, cloud accounts, irreversible cutting instructions, multi-user sync.
 
@@ -22,16 +23,16 @@ Non-goals: automatic camera measurement, commerce, image editing, cloud accounts
 Save named drafts on this device, reopen them after restarting, or delete them. Replacing a saved draft, opening a draft over current measurements, deleting a draft, and importing a backup require confirmation. Export a versioned JSON backup to transfer drafts without cloud services. Import validates the complete backup before replacing local drafts; invalid input leaves saved drafts unchanged. Interrupted local writes retain a recoverable previous snapshot.
 
 ## Platform and privacy
-The minimum supported iOS version is 14.0, required by the native file picker used for JSON backup import and export.
+The minimum supported iOS version is 14.0, required by the native file picker used for JSON and PDF export.
 
 Flutter single codebase for Windows (primary release), Android and iOS, including Android tablets and iPad. `com.infinityball.framemat` is Android application ID, iOS bundle ID and planned Windows identity. UX strategy A: Cupertino on iOS, Material 3 on Android and Fluent on Windows, behind a thin adaptive widget seam; never ship starter Material UI on iOS or phone UI on Windows. Local storage only; photo/file permission only on explicit import/export. No analytics, account, network access or medical claims. No secret values in repo. Store copy: `AppStore/description.txt`.
 
-Generated `AppStore/icon.png` (OpenAI Images `gpt-image-2.5-flare`) is wired into Windows ICO, Android mipmaps and iOS AppIcon rasters; source artwork is outside repo under `~/media/frame-mat/images/20261109T051040Z_openai_d57c46.png`. Icon appearance and compiled resources still need platform checks.
+The generated square Frame Mat artwork in `AppStore/icon.png` is used by the Windows ICO, Android launcher mipmaps and iOS AppIcon asset catalog. The art shows a framed mat with measurement marks; it is not a placeholder. Source artwork is maintained outside this repository.
 
 ## Status and build
-Adaptive starter shell uses Cupertino on iOS, Material 3 on Android and Fluent on Windows, with nine phone/tablet/desktop widget checks. Measurement entry, geometry, persistence and export remain backlog. SDK pinned to Flutter 3.44.0 / Dart 3.12.0 in `toolchain.json` and CI; use `flutter pub get --enforce-lockfile && flutter analyze && flutter test` locally. CI runs Linux Docker tests, Windows release build, Android debug APK and unsigned iOS simulator build. Windows/Android/iOS build results remain pending until CI runs on this branch.
+Flutter 3.44.0 / Dart 3.12.0 is pinned in `toolchain.json` and CI; use `flutter pub get --enforce-lockfile && flutter analyze && flutter test` locally. The latest main-branch CI run (16 November 2026) passed Linux tests, Windows release build, Android debug APK and unsigned iOS simulator build. The CI jobs also compile each platform's configured app icon resources.
 
-MVP release: `.github/workflows/release.yml` on `v*` tags or manual dispatch builds zipped Windows app on `windows-latest` and attaches GitHub release asset. Android debug APK and iOS simulator compile gates wired in CI; TestFlight via repository secret **names** `ASC_KEY_ID`, `ASC_ISSUER_ID`, `ASC_KEY_P8`, `ASC_TEAM_ID`, and Play submission are later opt-in milestones.
+`.github/workflows/release.yml` builds a portable Windows ZIP on `v*` tags or for a manually selected existing tag, publishes it to that GitHub release, then verifies the asset URL. Android debug APK and iOS simulator compile gates remain in CI. TestFlight and Play submission are not part of this release workflow.
 
 ## Manual setup required
-`com.infinityball.framemat` App Store Connect registration failed: `FAILED bundleId lookup rejected: FORBIDDEN_ERROR.PLA_NOT_ACCEPTED`. Apple Developer account owner must accept current Program License Agreement before retry. Bundle ID is not claimed registered; four ASC repository secrets were configured by name.
+`com.infinityball.framemat` App Store Connect registration previously failed with `FORBIDDEN_ERROR.PLA_NOT_ACCEPTED`. Apple Developer account owner must accept the current Program License Agreement before store registration can be retried. No TestFlight or Play submission is performed.
